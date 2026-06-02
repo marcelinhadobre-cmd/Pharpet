@@ -1,4 +1,5 @@
-import { cpSync, mkdirSync, writeFileSync } from "fs";
+import { cpSync, mkdirSync, writeFileSync, unlinkSync } from "fs";
+import { execSync } from "child_process";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -9,21 +10,14 @@ const out = resolve(root, ".vercel/output");
 mkdirSync(`${out}/static`, { recursive: true });
 mkdirSync(`${out}/functions/ssr.func`, { recursive: true });
 
-// Static assets → .vercel/output/static/
+// 1. Static assets do cliente
 cpSync(`${root}/dist/client`, `${out}/static`, { recursive: true });
 
-// Node.js wrapper that adapts the fetch handler for Vercel
+// 2. Entry temporário que adapta o fetch handler para Node.js HTTP
+const entryPath = resolve(root, ".vercel-entry.mjs");
 writeFileSync(
-  `${out}/functions/ssr.func/index.js`,
-  `
-let _server;
-async function getServer() {
-  if (!_server) {
-    const m = await import('./server.js');
-    _server = m.default;
-  }
-  return _server;
-}
+  entryPath,
+  `import server from './dist/server/server.js';
 
 export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
@@ -37,15 +31,14 @@ export default async function handler(req, res) {
 
   let body;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
-    body = await new Promise(resolve => {
+    body = await new Promise(r => {
       const chunks = [];
       req.on('data', c => chunks.push(c));
-      req.on('end', () => resolve(Buffer.concat(chunks)));
+      req.on('end', () => r(Buffer.concat(chunks)));
     });
   }
 
   const request = new Request(url, { method: req.method, headers, body });
-  const server = await getServer();
   const response = await server.fetch(request, {}, {});
 
   res.statusCode = response.status;
@@ -53,20 +46,38 @@ export default async function handler(req, res) {
   const buf = await response.arrayBuffer();
   res.end(Buffer.from(buf));
 }
-`.trim()
+`
 );
 
-// Copy the server bundle + assets into the function dir
-cpSync(`${root}/dist/server/server.js`, `${out}/functions/ssr.func/server.js`);
-cpSync(`${root}/dist/server/assets`, `${out}/functions/ssr.func/assets`, { recursive: true });
+// 3. Bundle tudo em um único arquivo ESM autocontido via esbuild
+console.log("Bundling SSR handler com esbuild...");
+execSync(
+  [
+    `npx esbuild`,
+    `"${entryPath}"`,
+    `--bundle`,
+    `--format=esm`,
+    `--platform=node`,
+    `--target=node20`,
+    `--external:node:*`,
+    `--outfile="${out}/functions/ssr.func/index.mjs"`,
+  ].join(" "),
+  { cwd: root, stdio: "inherit" }
+);
 
-// Function config
+unlinkSync(entryPath);
+
+// 4. Config da função Node.js
 writeFileSync(
   `${out}/functions/ssr.func/.vc-config.json`,
-  JSON.stringify({ runtime: "nodejs20.x", handler: "index.js", launcherType: "Nodejs" }, null, 2)
+  JSON.stringify(
+    { runtime: "nodejs20.x", handler: "index.mjs", launcherType: "Nodejs" },
+    null,
+    2
+  )
 );
 
-// Routing: static files first, then SSR for everything else
+// 5. Config de roteamento: arquivos estáticos primeiro, depois SSR
 writeFileSync(
   `${out}/config.json`,
   JSON.stringify(
