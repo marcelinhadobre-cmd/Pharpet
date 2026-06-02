@@ -195,6 +195,33 @@ export type Database = {
         }
         Relationships: []
       }
+      financas: {
+        Row: {
+          id: string
+          created_at: string
+          data: string
+          descricao: string
+          valor: number
+          tipo: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          data?: string
+          descricao: string
+          valor: number
+          tipo: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          valor?: number
+          tipo?: string
+        }
+        Relationships: []
+      }
       vendas: {
         Row: {
           id: string
