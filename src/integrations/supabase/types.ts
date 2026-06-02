@@ -195,6 +195,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pharpep_products: {
+        Row: {
+          id: string
+          created_at: string
+          name: string
+          description: string
+          price: number
+          primary_image_url: string | null
+          active: boolean
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          name: string
+          description?: string
+          price: number
+          primary_image_url?: string | null
+          active?: boolean
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          name?: string
+          description?: string
+          price?: number
+          primary_image_url?: string | null
+          active?: boolean
+          sort_order?: number
+        }
+        Relationships: []
+      }
       financas: {
         Row: {
           id: string
