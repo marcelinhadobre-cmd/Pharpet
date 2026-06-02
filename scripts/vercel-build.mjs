@@ -60,6 +60,8 @@ execSync(
     `--platform=node`,
     `--target=node20`,
     `--external:node:*`,
+    // shim para require() de módulos CJS (ex: react-dom/server.node.js usa require("util"))
+    `--banner:js="import{createRequire}from'node:module';const require=createRequire(import.meta.url);"`,
     `--outfile="${out}/functions/ssr.func/index.mjs"`,
   ].join(" "),
   { cwd: root, stdio: "inherit" }
